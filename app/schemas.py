@@ -80,6 +80,13 @@ class DetectJobStatus(BaseModel):
     error: str | None = None
 
 
+class ImageDetectResult(BaseModel):
+    marked: bool
+    payload: int | None = None
+    confidence: float = 0.0
+    engine: str
+
+
 class ReadyComponents(BaseModel):
     redis: bool
     ffmpeg: bool
