@@ -40,7 +40,7 @@ def test_detect_recovers_with_q_drift(tmp_path: Path):
     _make_clip(src)
 
     payload_id = 9_001
-    embed_video(src, marked, payload_id, crf=16)
+    embed_video(src, marked, payload_id, crf=16, q=12)
 
     detected = detect_video(marked, q=16)
     assert detected.marked is True
