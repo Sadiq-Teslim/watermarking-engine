@@ -75,6 +75,7 @@ def _decode_frame(frame: np.ndarray, secret: bytes | None, q: float) -> int | No
 
 
 def _decode_frame_multiscale(frame: np.ndarray, secret: bytes | None, q: float) -> int | None:
+    # Re-encoding can shift coefficient magnitudes, so probe nearby effective QIM steps.
     q_candidates = [q, q * 0.75, q * (2.0 / 3.0), q * 0.5]
     q_candidates = [qq for qq in q_candidates if qq > 0]
 
