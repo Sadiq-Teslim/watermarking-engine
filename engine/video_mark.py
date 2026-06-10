@@ -75,10 +75,15 @@ def _decode_frame(frame: np.ndarray, secret: bytes | None, q: float) -> int | No
 
 
 def _decode_frame_multiscale(frame: np.ndarray, secret: bytes | None, q: float) -> int | None:
+    # Re-encoding can shift coefficient magnitudes, so probe nearby effective QIM steps.
+    q_candidates = [q, q * 0.75, q * (2.0 / 3.0), q * 0.5]
+    q_candidates = [qq for qq in q_candidates if qq > 0]
+
     # Native scale first (the common transcode-only case).
-    pid = _decode_frame(frame, secret, q)
-    if pid is not None:
-        return pid
+    for qq in q_candidates:
+        pid = _decode_frame(frame, secret, qq)
+        if pid is not None:
+            return pid
     # Best-effort resync: assume the pirate resized to a standard height; try mapping back.
     h = frame.shape[0]
     for target_h in CANONICAL_HEIGHTS:
@@ -89,9 +94,10 @@ def _decode_frame_multiscale(frame: np.ndarray, secret: bytes | None, q: float) 
         if target_w < 16 or target_h < 16:
             continue
         resized = cv2.resize(frame, (target_w, target_h), interpolation=cv2.INTER_CUBIC)
-        pid = _decode_frame(resized, secret, q)
-        if pid is not None:
-            return pid
+        for qq in q_candidates:
+            pid = _decode_frame(resized, secret, qq)
+            if pid is not None:
+                return pid
     return None
 
 

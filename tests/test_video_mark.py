@@ -34,6 +34,19 @@ def test_embed_then_detect_recovers_payload(tmp_path: Path):
     assert detected.payload == payload_id
 
 
+def test_detect_recovers_with_q_drift(tmp_path: Path):
+    src = str(tmp_path / "src-q.mp4")
+    marked = str(tmp_path / "marked-q.mp4")
+    _make_clip(src)
+
+    payload_id = 9_001
+    embed_video(src, marked, payload_id, crf=16, q=12)
+
+    detected = detect_video(marked, q=16)
+    assert detected.marked is True
+    assert detected.payload == payload_id
+
+
 def test_unmarked_video_not_detected(tmp_path: Path):
     src = str(tmp_path / "plain.mp4")
     _make_clip(src)
