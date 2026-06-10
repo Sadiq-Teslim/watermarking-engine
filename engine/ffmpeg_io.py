@@ -2,6 +2,7 @@
 and frame sampling for detection. Operates directly on http(s) URLs or local paths."""
 import json
 import subprocess
+import tempfile
 from collections.abc import Iterator
 from dataclasses import dataclass
 
@@ -62,10 +63,14 @@ def watermark_video(
     w, h = info.width, info.height
     frame_size = w * h * 3
 
+    # stderr -> temp files (not PIPE) so they can't deadlock the lockstep loop.
+    dec_err = tempfile.TemporaryFile()
+    enc_err = tempfile.TemporaryFile()
+
     dec = subprocess.Popen(
         ["ffmpeg", "-v", "error", "-i", src,
          "-f", "rawvideo", "-pix_fmt", "bgr24", "-vsync", "0", "pipe:1"],
-        stdout=subprocess.PIPE, stderr=subprocess.DEVNULL,
+        stdout=subprocess.PIPE, stderr=dec_err,
     )
 
     enc_cmd = [
@@ -77,7 +82,14 @@ def watermark_video(
         "-c:v", "libx264", "-preset", preset, "-crf", str(crf), "-pix_fmt", "yuv420p",
         "-c:a", "copy", "-shortest", out_path,
     ]
-    enc = subprocess.Popen(enc_cmd, stdin=subprocess.PIPE, stderr=subprocess.DEVNULL)
+    enc = subprocess.Popen(enc_cmd, stdin=subprocess.PIPE, stderr=enc_err)
+
+    def _read_err(fh) -> str:
+        try:
+            fh.seek(0)
+            return fh.read().decode(errors="ignore")[:600]
+        except Exception:
+            return ""
 
     idx = 0
     try:
@@ -97,8 +109,19 @@ def watermark_video(
             dec.stdout.close()
         dec.wait(timeout=timeout)
         enc_rc = enc.wait(timeout=timeout)
+
+    if idx == 0:
+        detail = _read_err(dec_err) or _read_err(enc_err)
+        dec_err.close()
+        enc_err.close()
+        raise RuntimeError(f"decoded 0 frames from source ({w}x{h}); ffmpeg: {detail}")
     if enc_rc != 0:
-        raise RuntimeError(f"ffmpeg encode failed (rc={enc_rc})")
+        detail = _read_err(enc_err)
+        dec_err.close()
+        enc_err.close()
+        raise RuntimeError(f"ffmpeg encode failed (rc={enc_rc}): {detail}")
+    dec_err.close()
+    enc_err.close()
     return idx
 
 
