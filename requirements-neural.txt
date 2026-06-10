@@ -6,5 +6,8 @@ torchvision==0.20.1
 torchaudio==2.5.1
 audioseal==0.1.4
 soundfile==0.12.1
+# Neural image tier (image tool). Pin/validate against the installed version at deploy.
+pillow==11.0.0
+trustmark==0.7.0
 # Video neural tier (P7). Pin a specific commit at deploy for reproducibility.
 videoseal @ git+https://github.com/facebookresearch/videoseal.git

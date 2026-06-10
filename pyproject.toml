@@ -12,4 +12,7 @@ select = ["E", "F", "I", "W", "UP", "B"]
 
 [tool.ruff.lint.flake8-bugbear]
 # FastAPI relies on calls in argument defaults (dependency injection) — allow them.
-extend-immutable-calls = ["fastapi.Depends", "fastapi.Header", "fastapi.Query", "fastapi.Path"]
+extend-immutable-calls = [
+    "fastapi.Depends", "fastapi.Header", "fastapi.Query", "fastapi.Path",
+    "fastapi.File", "fastapi.Form",
+]

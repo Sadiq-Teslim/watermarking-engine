@@ -6,6 +6,7 @@ pydantic-settings==2.7.0
 redis==5.2.1
 rq==1.16.2
 httpx==0.28.1
+python-multipart==0.0.20
 
 # Watermark engine (P1)
 numpy==2.1.3
