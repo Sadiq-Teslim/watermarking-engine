@@ -1,0 +1,4 @@
+# Force LF in the repo so shell scripts / Dockerfile work in Linux containers.
+* text=auto eol=lf
+*.png binary
+*.jpg binary
