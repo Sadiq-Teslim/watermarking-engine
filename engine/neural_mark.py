@@ -6,7 +6,8 @@ unchanged: VideoSeal carries our codeword bits per frame; detection RS-decodes +
 majority-votes across sampled frames. ECC parity auto-scales to the model's bit capacity.
 
 NOTE: VideoSeal's exact embed/detect signatures should be validated against the installed
-package at deploy (covered by the benchmark with INSTALL_NEURAL=true and FPWM_BENCH_ENGINE=videoseal).
+package at deploy (covered by the benchmark with INSTALL_NEURAL=true and
+FPWM_BENCH_ENGINE=videoseal).
 """
 import cv2
 import numpy as np
@@ -38,7 +39,7 @@ def _load():
 
 
 def neural_nbits() -> int:
-    return int(getattr(_load(), "nbits"))
+    return int(_load().nbits)
 
 
 def _nsym_for(nbits: int) -> tuple[int, int]:
@@ -94,7 +95,9 @@ def embed_video_neural(
     return EmbedResult(frames_total=total, frames_marked=marked["n"])
 
 
-def _decode_frame_neural(frame: np.ndarray, secret: bytes | None, nbits: int, nsym: int) -> int | None:
+def _decode_frame_neural(
+    frame: np.ndarray, secret: bytes | None, nbits: int, nsym: int
+) -> int | None:
     import torch
 
     model = _load()

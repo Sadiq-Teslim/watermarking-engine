@@ -28,9 +28,16 @@ def _is_private_ip(host: str) -> bool:
 def validate_source_url(url: str) -> None:
     parsed = urlparse(url)
     if parsed.scheme not in ("http", "https"):
-        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="source_url must be http(s)")
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST, detail="source_url must be http(s)"
+        )
     host = parsed.hostname or ""
     if not host or host.lower().startswith(_BLOCKED_HOST_PREFIXES):
-        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="source_url host not allowed")
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST, detail="source_url host not allowed"
+        )
     if _is_private_ip(host):
-        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="source_url resolves to a private address")
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="source_url resolves to a private address",
+        )

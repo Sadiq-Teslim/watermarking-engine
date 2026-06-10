@@ -19,7 +19,7 @@ def quality_psnr_ssim(src: str, watermarked: str, n_samples: int = 5) -> tuple[f
     wm_frames = ffmpeg_io.iter_frames(watermarked, sample_fps=1.0)
     psnrs: list[float] = []
     ssims: list[float] = []
-    for a, b in islice(zip(src_frames, wm_frames), n_samples):
+    for a, b in islice(zip(src_frames, wm_frames, strict=False), n_samples):
         if a.shape != b.shape:
             continue
         psnrs.append(float(peak_signal_noise_ratio(a, b, data_range=255)))
