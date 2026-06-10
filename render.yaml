@@ -1,0 +1,60 @@
+# Render blueprint for FPWM (CPU host). Deploy: connect repo, Render reads this file.
+# Set the `sync: false` secrets in the Render dashboard after first deploy.
+services:
+  - type: web
+    name: fpwm-web
+    runtime: docker
+    dockerfilePath: ./Dockerfile
+    dockerContext: .
+    plan: standard
+    healthCheckPath: /healthz
+    dockerCommand: sh -c "uvicorn app.main:app --host 0.0.0.0 --port ${PORT:-8000} --workers 2"
+    envVars:
+      - key: REDIS_URL
+        fromService: { type: keyvalue, name: fpwm-redis, property: connectionString }
+      - key: FPWM_API_KEY
+        sync: false
+      - key: FPWM_HMAC_SECRET
+        sync: false
+      - key: STORAGE_BACKEND
+        value: cloudinary
+      - key: CLOUDINARY_CLOUD_NAME
+        sync: false
+      - key: CLOUDINARY_API_KEY
+        sync: false
+      - key: CLOUDINARY_API_SECRET
+        sync: false
+      - key: CLOUDINARY_FOLDER
+        value: fairplayafrica/watermarked
+
+  - type: worker
+    name: fpwm-worker
+    runtime: docker
+    dockerfilePath: ./Dockerfile
+    dockerContext: .
+    plan: standard
+    dockerCommand: python -m worker.run
+    numInstances: 2
+    envVars:
+      - key: REDIS_URL
+        fromService: { type: keyvalue, name: fpwm-redis, property: connectionString }
+      - key: FPWM_API_KEY
+        sync: false
+      - key: FPWM_HMAC_SECRET
+        sync: false
+      - key: STORAGE_BACKEND
+        value: cloudinary
+      - key: CLOUDINARY_CLOUD_NAME
+        sync: false
+      - key: CLOUDINARY_API_KEY
+        sync: false
+      - key: CLOUDINARY_API_SECRET
+        sync: false
+      - key: CLOUDINARY_FOLDER
+        value: fairplayafrica/watermarked
+
+  - type: keyvalue
+    name: fpwm-redis
+    plan: starter
+    maxmemoryPolicy: noeviction
+    ipAllowList: []   # private to Render services only

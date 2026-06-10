@@ -1,0 +1,51 @@
+# Production stack: redis (persistent, no eviction) + web + scalable workers.
+# Usage: docker compose -f docker-compose.prod.yml up -d --build --scale worker=2
+services:
+  redis:
+    image: redis:7-alpine
+    restart: unless-stopped
+    command: ["redis-server", "--maxmemory-policy", "noeviction", "--appendonly", "yes"]
+    volumes:
+      - redis-data:/data
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 10s
+      timeout: 3s
+      retries: 5
+
+  web:
+    build:
+      context: .
+      args:
+        INSTALL_DEV: "false"      # no test/lint deps in the prod image
+        INSTALL_NEURAL: "${INSTALL_NEURAL:-false}"   # set true to enable audio/neural tier
+    restart: unless-stopped
+    env_file:
+      - .env
+    environment:
+      REDIS_URL: redis://redis:6379/0
+    command: uvicorn app.main:app --host 0.0.0.0 --port 8000 --workers 2
+    ports:
+      - "8000:8000"
+    depends_on:
+      redis:
+        condition: service_healthy
+
+  worker:
+    build:
+      context: .
+      args:
+        INSTALL_DEV: "false"
+        INSTALL_NEURAL: "${INSTALL_NEURAL:-false}"
+    restart: unless-stopped
+    env_file:
+      - .env
+    environment:
+      REDIS_URL: redis://redis:6379/0
+    command: python -m worker.run
+    depends_on:
+      redis:
+        condition: service_healthy
+
+volumes:
+  redis-data:
