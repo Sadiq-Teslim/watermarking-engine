@@ -5,7 +5,7 @@ from app.routes import detect, health, watermark
 
 app = FastAPI(
     title="FPWM — FairPlay Watermark Service",
-    version="0.1.1",
+    version="0.1.2",
     description="Self-hosted forensic video watermarking engine.",
 )
 
