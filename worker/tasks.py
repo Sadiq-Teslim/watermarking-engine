@@ -22,7 +22,9 @@ def _guard_source(source_url: str) -> ffmpeg_io.VideoInfo:
     settings = get_settings()
     info = ffmpeg_io.probe(source_url)
     if settings.max_duration_s and info.duration > settings.max_duration_s:
-        raise ValueError(f"source duration {info.duration:.0f}s exceeds max {settings.max_duration_s}s")
+        raise ValueError(
+            f"source duration {info.duration:.0f}s exceeds max {settings.max_duration_s}s"
+        )
     return info
 
 
@@ -78,7 +80,9 @@ def embed_video_task(
     return result
 
 
-def detect_video_task(source_url: str, engine: str = "qim-dct", callback_url: str | None = None) -> dict:
+def detect_video_task(
+    source_url: str, engine: str = "qim-dct", callback_url: str | None = None
+) -> dict:
     settings = get_settings()
     _guard_source(source_url)
     body = channels.detect(

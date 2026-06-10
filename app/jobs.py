@@ -56,6 +56,7 @@ def status_of(job: Job) -> tuple[str, dict | None, str | None]:
     if rq_status == "finished":
         return ("ready", job.result, None)
     if rq_status in ("failed", "stopped", "canceled"):
-        error = (job.exc_info or "job failed").strip().splitlines()[-1] if job.exc_info else "job failed"
+        error_text = job.exc_info or "job failed"
+        error = error_text.strip().splitlines()[-1] if job.exc_info else "job failed"
         return ("error", None, error)
     return ("processing", None, None)

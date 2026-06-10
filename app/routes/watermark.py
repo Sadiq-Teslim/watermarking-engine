@@ -6,21 +6,29 @@ from app.auth import require_api_key
 from app.config import Settings, get_settings
 from app.schemas import JobAccepted, JobMetrics, JobStatus, WatermarkRequest
 
-router = APIRouter(prefix="/v1/watermark", tags=["watermark"], dependencies=[Depends(require_api_key)])
+router = APIRouter(
+    prefix="/v1/watermark", tags=["watermark"], dependencies=[Depends(require_api_key)]
+)
 
 
 @router.post("/video", status_code=status.HTTP_202_ACCEPTED, response_model=JobAccepted)
-def create_watermark(req: WatermarkRequest, settings: Settings = Depends(get_settings)) -> JobAccepted:
+def create_watermark(
+    req: WatermarkRequest, settings: Settings = Depends(get_settings)
+) -> JobAccepted:
     try:
         req.check_payload_bounds()
     except ValueError as exc:
-        raise HTTPException(status_code=status.HTTP_422_UNPROCESSABLE_ENTITY, detail=str(exc))
+        raise HTTPException(
+            status_code=status.HTTP_422_UNPROCESSABLE_ENTITY, detail=str(exc)
+        ) from exc
 
     security.validate_source_url(req.source_url)
     if req.callback_url:
         security.validate_source_url(req.callback_url)
     if not settings.storage_configured():
-        raise HTTPException(status_code=status.HTTP_503_SERVICE_UNAVAILABLE, detail="storage not configured")
+        raise HTTPException(
+            status_code=status.HTTP_503_SERVICE_UNAVAILABLE, detail="storage not configured"
+        )
 
     job_id = jobs.enqueue(
         settings,

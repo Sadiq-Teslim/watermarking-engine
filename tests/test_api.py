@@ -50,12 +50,12 @@ def test_watermark_status_not_found(client, auth_headers, monkeypatch):
 
 
 def test_watermark_status_ready(client, auth_headers, monkeypatch):
+    ready = {
+        "watermarked_url": "https://cdn/marked.mp4",
+        "metrics": {"psnr": 44.1, "ssim": 0.991, "frames_marked": 75},
+    }
     monkeypatch.setattr(jobs, "fetch", lambda *a, **k: object())
-    monkeypatch.setattr(
-        jobs, "status_of",
-        lambda job: ("ready", {"watermarked_url": "https://cdn/marked.mp4",
-                               "metrics": {"psnr": 44.1, "ssim": 0.991, "frames_marked": 75}}, None),
-    )
+    monkeypatch.setattr(jobs, "status_of", lambda job: ("ready", ready, None))
     resp = client.get("/v1/watermark/jobs/job-123", headers=auth_headers)
     assert resp.status_code == 200
     body = resp.json()
@@ -72,11 +72,9 @@ def test_detect_create_and_status(client, auth_headers, monkeypatch):
     assert resp.status_code == 202
     assert resp.json()["job_id"] == "det-1"
 
+    detected = {"marked": True, "payload": 42, "confidence": 0.98, "frames_voted": 50}
     monkeypatch.setattr(jobs, "fetch", lambda *a, **k: object())
-    monkeypatch.setattr(
-        jobs, "status_of",
-        lambda job: ("ready", {"marked": True, "payload": 42, "confidence": 0.98, "frames_voted": 50}, None),
-    )
+    monkeypatch.setattr(jobs, "status_of", lambda job: ("ready", detected, None))
     resp2 = client.get("/v1/detect/jobs/det-1", headers=auth_headers)
     assert resp2.status_code == 200
     body = resp2.json()

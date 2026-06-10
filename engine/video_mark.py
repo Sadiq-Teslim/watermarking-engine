@@ -17,7 +17,7 @@ from engine.constants import (
     NSYM,
 )
 from engine.ecc import ReedSolomonError, bits_to_bytes, bytes_to_bits, rs_decode, rs_encode
-from engine.image_mark import extract_bits_from_frame, embed_bits_in_frame
+from engine.image_mark import embed_bits_in_frame, extract_bits_from_frame
 from engine.payload import decode_message, encode_message
 
 

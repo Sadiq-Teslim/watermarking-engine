@@ -128,7 +128,9 @@ def replace_audio(video_in: str, wav_in: str, out_path: str, timeout: int = 1800
         raise RuntimeError(f"audio mux failed: {result.stderr.decode(errors='ignore')[:300]}")
 
 
-def iter_frames(src: str, sample_fps: float | None = None, timeout: int = 1800) -> Iterator[np.ndarray]:
+def iter_frames(
+    src: str, sample_fps: float | None = None, timeout: int = 1800
+) -> Iterator[np.ndarray]:
     """Yield decoded BGR frames. If sample_fps is set, decode at that rate (frame size is
     unchanged by the fps filter)."""
     info = probe(src)

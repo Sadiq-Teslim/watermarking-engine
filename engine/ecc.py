@@ -1,5 +1,5 @@
 """Reed-Solomon ECC + bit/byte helpers."""
-from reedsolo import RSCodec, ReedSolomonError  # noqa: F401  (re-exported for callers)
+from reedsolo import ReedSolomonError, RSCodec  # noqa: F401  (re-exported for callers)
 
 from engine.constants import NSYM
 

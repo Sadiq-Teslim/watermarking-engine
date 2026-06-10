@@ -4,7 +4,7 @@ from fastapi import APIRouter, Depends, HTTPException, status
 from app import jobs, security
 from app.auth import require_api_key
 from app.config import Settings, get_settings
-from app.schemas import DetectRequest, DetectResult, DetectJobStatus, JobAccepted
+from app.schemas import DetectJobStatus, DetectRequest, DetectResult, JobAccepted
 
 router = APIRouter(prefix="/v1/detect", tags=["detect"], dependencies=[Depends(require_api_key)])
 
