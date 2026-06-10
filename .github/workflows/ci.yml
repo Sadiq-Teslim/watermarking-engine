@@ -40,10 +40,14 @@ jobs:
         run: sudo apt-get update && sudo apt-get install -y ffmpeg
       - name: Install deps
         run: pip install -r requirements.txt
-      - name: Run robustness benchmark (Tier 1)
+      - name: Run robustness benchmark (Tier 1 video)
         run: python -m bench.run_benchmark
-      - name: Enforce accuracy gates
+      - name: Enforce video accuracy gates
         run: python -m bench.gates
+      - name: Run image benchmark (qim-dct)
+        run: python -m bench.run_image_benchmark
+      - name: Enforce image accuracy gates
+        run: python -m bench.image_gates
       - uses: actions/upload-artifact@v4
         if: always()
         with:

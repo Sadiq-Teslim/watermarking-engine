@@ -15,7 +15,9 @@ venv/
 
 # Benchmark artifacts
 bench/corpus/
+bench/images/
 bench/report.json
+bench/image_report.json
 
 # Media
 *.mp4
