@@ -1,4 +1,8 @@
 """Synchronous image watermark + detect endpoints (fast — no job queue needed)."""
+import json
+
+import cv2
+import numpy as np
 from fastapi import APIRouter, Depends, File, Form, HTTPException, Response, UploadFile
 
 from app.auth import require_api_key
@@ -12,6 +16,26 @@ router = APIRouter(prefix="/v1/image", tags=["image"], dependencies=[Depends(req
 
 def _secret(settings: Settings) -> bytes | None:
     return settings.fpwm_hmac_secret.encode() if settings.fpwm_hmac_secret else None
+
+
+def _dims(data: bytes) -> tuple[int, int] | None:
+    arr = cv2.imdecode(np.frombuffer(data, np.uint8), cv2.IMREAD_COLOR)
+    if arr is None:
+        return None
+    return (arr.shape[1], arr.shape[0])  # (width, height)
+
+
+def _parse_sizes(raw: str) -> list[tuple[int, int]] | None:
+    """Parse candidate_sizes form field: JSON like [[640,480],[1920,1080]]."""
+    if not raw:
+        return None
+    try:
+        sizes = json.loads(raw)
+        return [(int(w), int(h)) for w, h in sizes][:50]
+    except (ValueError, TypeError) as exc:
+        raise HTTPException(
+            status_code=422, detail="candidate_sizes must be JSON [[w,h],...]"
+        ) from exc
 
 
 @router.post("/watermark")
@@ -36,19 +60,30 @@ async def watermark_image(
         raise
     except Exception as exc:
         raise HTTPException(status_code=400, detail=f"watermark failed: {exc}") from exc
-    return Response(content=out, media_type="image/png")
+
+    # Original dimensions in headers so callers can store them and pass size hints later.
+    headers = {}
+    dims = _dims(data)
+    if dims:
+        headers["X-Original-Width"] = str(dims[0])
+        headers["X-Original-Height"] = str(dims[1])
+    return Response(content=out, media_type="image/png", headers=headers)
 
 
 @router.post("/detect", response_model=ImageDetectResult)
 async def detect_image(
     file: UploadFile = File(...),
     engine: str = Form("trustmark"),
+    candidate_sizes: str = Form(""),
     settings: Settings = Depends(get_settings),
 ) -> ImageDetectResult:
     data = await file.read()
+    sizes = _parse_sizes(candidate_sizes)
     try:
         if engine == "qim-dct":
-            marked, payload, conf = image_codec.detect_image(data, secret=_secret(settings))
+            marked, payload, conf = image_codec.detect_image(
+                data, secret=_secret(settings), candidate_sizes=sizes
+            )
         elif engine == "trustmark":
             from engine import image_neural
             marked, payload, conf = image_neural.detect_image(data)

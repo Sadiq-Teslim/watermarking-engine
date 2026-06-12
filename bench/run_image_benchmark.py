@@ -4,7 +4,11 @@ For each corpus image: embed a known payload, apply each attack, attempt detecti
 record exact-payload recovery. Also measures imperceptibility (PSNR/SSIM) and the
 false-positive rate on UNMARKED images. `image_gates.py` turns this into a CI pass/fail.
 
-Engine selected via FPWM_BENCH_ENGINE: qim-dct (default) or trustmark (neural).
+Engine selected via FPWM_BENCH_ENGINE:
+  qim-dct         classical, no hints (recompression-only survival)
+  qim-dct-hinted  classical + original-size hints — the PRODUCT mode (the registry knows
+                  every original's dimensions), survives resize/social/screenshot too
+  trustmark       neural tier (survives crop/rotate/unknown sizes)
 """
 import json
 import os
@@ -21,25 +25,38 @@ BASE_PAYLOAD = 5_000_000
 ENGINE = os.environ.get("FPWM_BENCH_ENGINE", "qim-dct")
 
 
-def _engine():
-    if ENGINE == "trustmark":
-        from engine import image_neural
-        return image_neural.embed_image, image_neural.detect_image
-    from engine import image_codec
-    return image_codec.embed_image, image_codec.detect_image
-
-
 def _arr(data: bytes) -> np.ndarray:
     return cv2.imdecode(np.frombuffer(data, np.uint8), cv2.IMREAD_COLOR)
 
 
+def _make_engine():
+    """Return (embed, detect) where detect(data, original_size) -> (found, payload)."""
+    if ENGINE == "trustmark":
+        from engine import image_neural
+
+        def detect(data, _size):
+            found, pid, _ = image_neural.detect_image(data)
+            return found, pid
+        return image_neural.embed_image, detect
+
+    from engine import image_codec
+    hinted = ENGINE == "qim-dct-hinted"
+
+    def detect(data, size):
+        sizes = [size] if (hinted and size) else None
+        found, pid, _ = image_codec.detect_image(data, candidate_sizes=sizes)
+        return found, pid
+    return image_codec.embed_image, detect
+
+
 def run() -> dict:
-    embed_image, detect_image = _engine()
+    embed_image, detect = _make_engine()
     images = image_corpus.all_images()
     if not images:
         raise RuntimeError("no corpus images available")
 
-    attack_set = {**image_attacks.RECOMPRESSION_ATTACKS, **image_attacks.GEOMETRIC_ATTACKS}
+    attack_set = {**image_attacks.RECOMPRESSION_ATTACKS, **image_attacks.GEOMETRIC_ATTACKS,
+                  **image_attacks.CROP_ROTATE_ATTACKS}
     per_attack = {name: {"recovered": 0, "total": 0} for name in attack_set}
     per_attack["clean"] = {"recovered": 0, "total": 0}
     psnrs: list[float] = []
@@ -51,25 +68,27 @@ def run() -> dict:
         marked = embed_image(data, payload)
 
         a, b = _arr(data), _arr(marked)
+        size = (a.shape[1], a.shape[0])  # (width, height) of the original
         if a.shape == b.shape:
             psnrs.append(float(peak_signal_noise_ratio(a, b, data_range=255)))
             ssims.append(float(structural_similarity(
                 a.mean(axis=2), b.mean(axis=2), data_range=255)))
 
-        marked_det = detect_image(marked)
+        found, pid = detect(marked, size)
         per_attack["clean"]["total"] += 1
-        per_attack["clean"]["recovered"] += int(marked_det[0] and marked_det[1] == payload)
+        per_attack["clean"]["recovered"] += int(found and pid == payload)
 
         for name, fn in attack_set.items():
             per_attack[name]["total"] += 1
             try:
                 attacked = fn(marked)
-                det = detect_image(attacked)
-                per_attack[name]["recovered"] += int(det[0] and det[1] == payload)
+                found, pid = detect(attacked, size)
+                per_attack[name]["recovered"] += int(found and pid == payload)
             except Exception:
                 pass
 
-        if detect_image(data)[0]:
+        found, _ = detect(data, size)
+        if found:
             false_positives += 1
 
     def rate(d: dict) -> float:

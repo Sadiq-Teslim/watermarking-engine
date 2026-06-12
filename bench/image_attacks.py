@@ -51,6 +51,16 @@ def brightness(data: bytes, delta: int) -> bytes:
     return _png(np.clip(img, 0, 255).astype(np.uint8))
 
 
+def resize_to_width(data: bytes, width: int) -> bytes:
+    img = _dec(data)
+    h, w = img.shape[:2]
+    if w <= width:
+        return _png(img)
+    scale = width / w
+    return _png(cv2.resize(img, (width, max(8, int(h * scale))),
+                           interpolation=cv2.INTER_AREA))
+
+
 def screenshot_sim(data: bytes) -> bytes:
     # Approximate a screenshot: mild downscale + JPEG.
     return jpeg(resize(data, 0.85), 80)
@@ -61,21 +71,49 @@ def social_sim(data: bytes) -> bytes:
     return jpeg(resize(data, 0.9), 60)
 
 
+# Named platform pipelines (what each platform actually does to an uploaded image).
+def instagram_sim(data: bytes) -> bytes:
+    return jpeg(resize_to_width(data, 1080), 70)
+
+
+def twitter_sim(data: bytes) -> bytes:
+    return jpeg(resize_to_width(data, 1200), 85)
+
+
+def whatsapp_sim(data: bytes) -> bytes:
+    return jpeg(resize_to_width(data, 1600), 70)
+
+
+def reshare_sim(data: bytes) -> bytes:
+    # Copy travels: WhatsApp forward -> screenshot -> re-post.
+    return screenshot_sim(whatsapp_sim(data))
+
+
 # Tier-1 (qim-dct) is gated on these (recompression survives block-DCT).
 RECOMPRESSION_ATTACKS = {
     "jpeg_q90": lambda b: jpeg(b, 90),
     "jpeg_q75": lambda b: jpeg(b, 75),
     "jpeg_q50": lambda b: jpeg(b, 50),
+    "jpeg_q35": lambda b: jpeg(b, 35),
     "brightness": lambda b: brightness(b, 12),
 }
 
-# Geometric/screenshot attacks: measured for qim-dct, gated for the neural (trustmark) tier.
+# Resize/screenshot/platform attacks: gated for qim-dct WITH size hints (the product
+# registry knows original dimensions) and for the neural (trustmark) tier.
 GEOMETRIC_ATTACKS = {
     "resize_50": lambda b: resize(b, 0.5),
     "resize_150": lambda b: resize(b, 1.5),
+    "screenshot": screenshot_sim,
+    "social": social_sim,
+    "instagram": instagram_sim,
+    "twitter": twitter_sim,
+    "whatsapp": whatsapp_sim,
+    "reshare": reshare_sim,
+}
+
+# Grid-destroying attacks: neural (trustmark) tier only — size hints can't undo a crop.
+CROP_ROTATE_ATTACKS = {
     "crop_10": lambda b: crop(b, 0.10),
     "crop_25": lambda b: crop(b, 0.25),
     "rotate_3deg": lambda b: rotate(b, 3.0),
-    "screenshot": screenshot_sim,
-    "social": social_sim,
 }

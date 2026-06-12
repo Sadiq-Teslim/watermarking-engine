@@ -1,5 +1,11 @@
 """DCT-QIM image watermarking (fast, CPU). Reuses the Tier-1 frame engine for stills.
-Survives JPEG recompression / resize; use the neural tier for screenshots/social re-encode."""
+
+Survives JPEG recompression down to ~q35 unhinted (COEF/Q tuned via bench/tune_qim.py).
+With `candidate_sizes` hints (the original dimensions, which the product registry always
+knows), it also survives resize + social/screenshot re-encodes: the detector rescales the
+suspect back onto the original block grid before extracting. Crop/rotation/unknown-size
+cases are the neural (TrustMark) tier's job.
+"""
 import cv2
 import numpy as np
 
@@ -28,14 +34,43 @@ def embed_image(
     return buf.tobytes()
 
 
+def _try_decode(arr: np.ndarray, secret: bytes | None, q: float) -> int | None:
+    # Recompression shifts effective coefficient magnitudes; probe a small q ladder.
+    # Wrong steps can't false-positive — they fail the CRC gate and are discarded.
+    for qq in (q, q * 0.75, q * 0.5):
+        bits = extract_bits_from_frame(arr, CODEWORD_BITS, qq)
+        try:
+            msg = rs_decode(bits_to_bytes(bits), NSYM)
+        except ReedSolomonError:
+            continue
+        ok, payload_id, _ = decode_message(msg, secret=secret)
+        if ok:
+            return payload_id
+    return None
+
+
 def detect_image(
-    data: bytes, secret: bytes | None = None, q: float = DEFAULT_Q
+    data: bytes,
+    secret: bytes | None = None,
+    q: float = DEFAULT_Q,
+    candidate_sizes: list[tuple[int, int]] | None = None,
 ) -> tuple[bool, int | None, float]:
+    """Detect a payload. `candidate_sizes` are (width, height) hints — the original
+    dimensions of registered images — used to undo platform resizes by mapping the
+    suspect back onto the embedding block grid."""
     img = _decode(data)
-    bits = extract_bits_from_frame(img, CODEWORD_BITS, q)
-    try:
-        msg = rs_decode(bits_to_bytes(bits), NSYM)
-    except ReedSolomonError:
-        return (False, None, 0.0)
-    ok, payload_id, _ = decode_message(msg, secret=secret)
-    return (ok, payload_id if ok else None, 1.0 if ok else 0.0)
+
+    pid = _try_decode(img, secret, q)
+    if pid is not None:
+        return (True, pid, 1.0)
+
+    h, w = img.shape[:2]
+    for cw, ch in candidate_sizes or []:
+        if cw < 16 or ch < 16 or (cw == w and ch == h):
+            continue
+        restored = cv2.resize(img, (int(cw), int(ch)), interpolation=cv2.INTER_CUBIC)
+        pid = _try_decode(restored, secret, q)
+        if pid is not None:
+            return (True, pid, 1.0)
+
+    return (False, None, 0.0)
