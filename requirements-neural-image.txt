@@ -1,0 +1,7 @@
+# Neural IMAGE tier only (TrustMark) — lean set for the image-neural CI job.
+# CPU torch builds; swap the index URL for a CUDA build on a GPU host.
+--extra-index-url https://download.pytorch.org/whl/cpu
+torch==2.5.1
+torchvision==0.20.1
+pillow==11.0.0
+trustmark==0.7.0
