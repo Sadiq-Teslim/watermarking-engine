@@ -1,7 +1,10 @@
 """Pass/fail gates for the image benchmark (bench/image_report.json).
 
-qim-dct is gated on recompression + imperceptibility + zero false positives. Geometric and
-screenshot/social attacks are REPORTED for qim-dct but GATED only for the neural tier.
+Gating is per engine mode:
+  qim-dct         recompression survival + imperceptibility + zero false positives
+  qim-dct-hinted  + resize/screenshot/social/platform pipelines (product mode: detection
+                  gets original-size hints from the registry)
+  trustmark       + crop/rotate (neural tier owns grid-destroying attacks)
 """
 import json
 import sys
@@ -12,39 +15,50 @@ REPORT_PATH = Path(__file__).parent / "image_report.json"
 RECOMPRESSION_GATES = {
     "clean": 1.00,
     "jpeg_q90": 0.99,
-    "jpeg_q75": 0.95,
-    "jpeg_q50": 0.85,
+    "jpeg_q75": 0.99,
+    "jpeg_q50": 0.95,
+    "jpeg_q35": 0.90,
     "brightness": 0.95,
 }
-NEURAL_GEOMETRIC_GATES = {
+HINTED_GATES = {
     "resize_50": 0.90,
     "resize_150": 0.95,
+    "screenshot": 0.90,
+    "social": 0.90,
+    "instagram": 0.90,
+    "twitter": 0.95,
+    "whatsapp": 0.90,
+    "reshare": 0.80,
+}
+NEURAL_GATES = {
+    **{k: 0.80 for k in HINTED_GATES},
     "crop_10": 0.85,
-    "screenshot": 0.80,
-    "social": 0.80,
+    "crop_25": 0.75,
+    "rotate_3deg": 0.75,
 }
 IMPERCEPTIBILITY_GATES = {"psnr": 38.0, "ssim": 0.96}
 
 
-def evaluate(report: dict) -> list[str]:
-    failures: list[str] = []
-    recovery = report.get("recovery", {})
-    engine = report.get("engine", "qim-dct")
-
-    for name, threshold in RECOMPRESSION_GATES.items():
+def _check(recovery: dict, gates: dict, label: str) -> list[str]:
+    failures = []
+    for name, threshold in gates.items():
         got = recovery.get(name)
         if got is None:
             failures.append(f"missing recovery metric: {name}")
         elif got < threshold:
-            failures.append(f"recovery[{name}]={got:.4f} < {threshold:.2f}")
+            failures.append(f"recovery[{name}]={got:.4f} < {threshold:.2f} ({label})")
+    return failures
 
+
+def evaluate(report: dict) -> list[str]:
+    recovery = report.get("recovery", {})
+    engine = report.get("engine", "qim-dct")
+    failures = _check(recovery, RECOMPRESSION_GATES, "recompression")
+
+    if engine == "qim-dct-hinted":
+        failures += _check(recovery, HINTED_GATES, "hinted")
     if engine == "trustmark":
-        for name, threshold in NEURAL_GEOMETRIC_GATES.items():
-            got = recovery.get(name)
-            if got is None:
-                failures.append(f"missing geometric metric: {name}")
-            elif got < threshold:
-                failures.append(f"recovery[{name}]={got:.4f} < {threshold:.2f} (neural gate)")
+        failures += _check(recovery, NEURAL_GATES, "neural")
 
     if report.get("false_positives", 1) != 0:
         failures.append(f"false_positives={report.get('false_positives')} (must be 0)")

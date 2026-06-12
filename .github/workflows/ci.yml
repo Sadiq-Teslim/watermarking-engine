@@ -28,9 +28,51 @@ jobs:
           REDIS_URL: redis://localhost:6379/0
         run: pytest -q
 
-  benchmark:
+  # Image accuracy — the primary product gate (classical engine, both modes).
+  image-benchmark:
     runs-on: ubuntu-latest
-    needs: test
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+      - name: Install deps
+        run: pip install -r requirements.txt
+      - name: Image benchmark (qim-dct, unhinted)
+        run: python -m bench.run_image_benchmark && python -m bench.image_gates
+      - name: Image benchmark (qim-dct-hinted — product mode)
+        env:
+          FPWM_BENCH_ENGINE: qim-dct-hinted
+        run: python -m bench.run_image_benchmark && python -m bench.image_gates
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: image-benchmark-report
+          path: bench/image_report.json
+
+  # Neural tier (TrustMark) — survives crop/rotate/unknown sizes. CPU torch.
+  image-benchmark-neural:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+      - name: Install deps (incl. neural)
+        run: pip install -r requirements.txt -r requirements-neural.txt
+      - name: Image benchmark (trustmark)
+        env:
+          FPWM_BENCH_ENGINE: trustmark
+        run: python -m bench.run_image_benchmark && python -m bench.image_gates
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: image-benchmark-neural-report
+          path: bench/image_report.json
+
+  # Video accuracy — tracked separately; hardening pass follows the image work.
+  video-benchmark:
+    runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-python@v5
@@ -40,16 +82,12 @@ jobs:
         run: sudo apt-get update && sudo apt-get install -y ffmpeg
       - name: Install deps
         run: pip install -r requirements.txt
-      - name: Run robustness benchmark (Tier 1 video)
+      - name: Video benchmark (Tier 1)
         run: python -m bench.run_benchmark
       - name: Enforce video accuracy gates
         run: python -m bench.gates
-      - name: Run image benchmark (qim-dct)
-        run: python -m bench.run_image_benchmark
-      - name: Enforce image accuracy gates
-        run: python -m bench.image_gates
       - uses: actions/upload-artifact@v4
         if: always()
         with:
-          name: fpwm-benchmark-report
+          name: video-benchmark-report
           path: bench/report.json

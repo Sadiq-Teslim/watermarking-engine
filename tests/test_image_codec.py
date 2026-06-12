@@ -38,3 +38,21 @@ def test_unmarked_image_not_detected():
     found, got, _ = detect_image(_png_bytes(), q=12.0)
     assert found is False
     assert got is None
+
+
+def test_survives_social_resize_with_size_hint():
+    """Platform pipeline (downscale + heavy JPEG) recovered via original-size hint."""
+    payload_id = 888_777
+    marked_png = embed_image(_png_bytes(512, 512), payload_id)
+    arr = cv2.imdecode(np.frombuffer(marked_png, np.uint8), cv2.IMREAD_COLOR)
+    small = cv2.resize(arr, (460, 460), interpolation=cv2.INTER_AREA)  # ~0.9x
+    ok, jpg = cv2.imencode(".jpg", small, [cv2.IMWRITE_JPEG_QUALITY, 60])
+    assert ok
+
+    # Without the hint the grid is broken…
+    found_nohint, _, _ = detect_image(jpg.tobytes())
+    # …with the original size it recovers exactly.
+    found, got, _ = detect_image(jpg.tobytes(), candidate_sizes=[(512, 512)])
+    assert found is True
+    assert got == payload_id
+    assert found_nohint is False

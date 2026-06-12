@@ -2,9 +2,11 @@
 
 # --- DCT-QIM ---
 BLOCK = 8                  # 8x8 DCT blocks (aligned with JPEG/H.264 transform grid)
-COEF = (4, 3)             # mid-frequency coefficient used to carry one bit per block
+# Low-frequency coefficient: JPEG/H.264 quantize (2,1) ~4x more gently than mid-band
+# (4,3), so the mark survives q35-q90 recompression (validated by bench/tune_qim.py).
+COEF = (2, 1)
 SEED = 0x46504157          # 'FPAW' — fixed seed for the block->bit permutation
-DEFAULT_Q = 12.0           # QIM quantization step (the "strength" knob)
+DEFAULT_Q = 20.0           # QIM step: survives JPEG q35+ at PSNR ~43 (tune_qim sweep)
 
 # --- Payload message format (48 bits total) ---
 VERSION = 1
