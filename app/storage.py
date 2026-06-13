@@ -39,3 +39,31 @@ def upload_video(settings: Settings, local_path: str, public_id: str | None = No
     else:
         result = cloudinary.uploader.upload(local_path, **opts)
     return result["secure_url"]
+
+
+def upload_image_bytes(
+    settings: Settings,
+    data: bytes,
+    public_id: str | None = None,
+    folder_suffix: str = "images",
+) -> dict:
+    if settings.storage_backend != "cloudinary":
+        raise RuntimeError(f"unsupported storage backend: {settings.storage_backend}")
+    if not settings.storage_configured():
+        raise RuntimeError("storage backend not configured")
+    _configure(settings)
+    result = cloudinary.uploader.upload(
+        data,
+        resource_type="image",
+        folder=f"{settings.cloudinary_folder}/{folder_suffix}".strip("/"),
+        public_id=public_id,
+        use_filename=False,
+        unique_filename=True,
+        overwrite=False,
+    )
+    return {
+        "url": result["secure_url"],
+        "public_id": result.get("public_id", ""),
+        "width": result.get("width"),
+        "height": result.get("height"),
+    }

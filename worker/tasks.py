@@ -9,8 +9,8 @@ import httpx
 
 from app import storage
 from app.config import get_settings
-from engine import channels, ffmpeg_io, metrics
-from engine.constants import DEFAULT_Q
+from engine import channels, ffmpeg_io, image_codec, metrics
+from engine.constants import DEFAULT_Q, MAX_PAYLOAD_ID
 
 
 def _secret() -> bytes | None:
@@ -91,3 +91,62 @@ def detect_video_task(
     if callback_url:
         _post_callback(callback_url, {"event": "detect.completed", **body})
     return body
+
+
+def embed_image_task(
+    data: bytes,
+    filename: str,
+    payload: int,
+    engine: str = "qim-dct",
+) -> dict:
+    if not (1 <= payload <= MAX_PAYLOAD_ID):
+        raise ValueError(f"payload must be in [1,{MAX_PAYLOAD_ID}]")
+    settings = get_settings()
+    if engine == "qim-dct":
+        out = image_codec.embed_image(data, payload, secret=_secret())
+    elif engine == "trustmark":
+        from engine import image_neural
+
+        if not image_neural.is_available():
+            raise RuntimeError("trustmark is not enabled or not installed")
+        out = image_neural.embed_image(data, payload)
+    else:
+        raise ValueError(f"unknown engine: {engine}")
+
+    uploaded = storage.upload_image_bytes(settings, out, folder_suffix="images")
+    return {
+        "watermarked_url": uploaded["url"],
+        "watermarked_public_id": uploaded["public_id"],
+        "width": uploaded["width"],
+        "height": uploaded["height"],
+        "engine": engine,
+        "filename": filename,
+    }
+
+
+def detect_image_task(
+    data: bytes,
+    filename: str,
+    engine: str = "qim-dct",
+    candidate_sizes: list[tuple[int, int]] | None = None,
+) -> dict:
+    settings = get_settings()
+    if engine == "qim-dct":
+        marked, payload, confidence = image_codec.detect_image(
+            data, secret=_secret(), candidate_sizes=candidate_sizes
+        )
+    elif engine == "trustmark":
+        from engine import image_neural
+
+        if not image_neural.is_available():
+            raise RuntimeError("trustmark is not enabled or not installed")
+        marked, payload, confidence = image_neural.detect_image(data)
+    else:
+        raise ValueError(f"unknown engine: {engine}")
+    return {
+        "marked": marked,
+        "payload": payload,
+        "confidence": confidence,
+        "engine": engine,
+        "filename": filename,
+    }
