@@ -14,13 +14,16 @@ RUN apt-get update \
 WORKDIR /app
 
 # Install deps first for layer caching.
-COPY requirements.txt requirements-dev.txt requirements-neural.txt ./
+COPY requirements.txt requirements-dev.txt requirements-neural-image.txt requirements-neural.txt ./
 ARG INSTALL_DEV=false
 ARG INSTALL_NEURAL=false
+ARG INSTALL_NEURAL_IMAGE=false
+ARG INSTALL_NEURAL_FULL=false
 RUN pip install --upgrade pip \
     && pip install -r requirements.txt \
     && if [ "$INSTALL_DEV" = "true" ]; then pip install -r requirements-dev.txt; fi \
-    && if [ "$INSTALL_NEURAL" = "true" ]; then pip install -r requirements-neural.txt; fi
+    && if [ "$INSTALL_NEURAL" = "true" ] || [ "$INSTALL_NEURAL_IMAGE" = "true" ]; then pip install -r requirements-neural-image.txt; fi \
+    && if [ "$INSTALL_NEURAL_FULL" = "true" ]; then pip install -r requirements-neural.txt; fi
 
 COPY . .
 

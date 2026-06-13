@@ -1,4 +1,4 @@
-# Full neural tier (image + audio + video). Heavy — installed only when INSTALL_NEURAL=true.
+# Full neural tier (image + audio + video). Heavy; installed only when INSTALL_NEURAL_FULL=true.
 # CPU torch builds; swap the index URL for a CUDA build on a GPU host.
 -r requirements-neural-image.txt
 torchaudio==2.5.1

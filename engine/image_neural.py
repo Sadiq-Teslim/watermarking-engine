@@ -13,6 +13,14 @@ from engine.constants import MAX_PAYLOAD_ID
 _model = None
 
 
+def is_available() -> bool:
+    try:
+        import trustmark  # noqa: F401
+    except ImportError:
+        return False
+    return True
+
+
 def _load():
     global _model
     if _model is None:

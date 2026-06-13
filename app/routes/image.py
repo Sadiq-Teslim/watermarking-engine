@@ -38,11 +38,37 @@ def _parse_sizes(raw: str) -> list[tuple[int, int]] | None:
         ) from exc
 
 
+@router.get("/capabilities")
+async def image_capabilities() -> dict:
+    from engine import image_neural
+
+    return {
+        "default_engine": "qim-dct",
+        "engines": {
+            "qim-dct": {
+                "available": True,
+                "tier": "standard",
+                "survives": [
+                    "jpeg",
+                    "resize-with-size-hints",
+                    "screenshots",
+                    "social-reencode-with-size-hints",
+                ],
+            },
+            "trustmark": {
+                "available": image_neural.is_available(),
+                "tier": "strong",
+                "survives": ["crop", "rotation", "screenshots", "unknown-resize"],
+            },
+        },
+    }
+
+
 @router.post("/watermark")
 async def watermark_image(
     file: UploadFile = File(...),
     payload: int = Form(...),
-    engine: str = Form("trustmark"),
+    engine: str = Form("qim-dct"),
     settings: Settings = Depends(get_settings),
 ) -> Response:
     if not (1 <= payload <= MAX_PAYLOAD_ID):
@@ -73,7 +99,7 @@ async def watermark_image(
 @router.post("/detect", response_model=ImageDetectResult)
 async def detect_image(
     file: UploadFile = File(...),
-    engine: str = Form("trustmark"),
+    engine: str = Form("qim-dct"),
     candidate_sizes: str = Form(""),
     settings: Settings = Depends(get_settings),
 ) -> ImageDetectResult:
