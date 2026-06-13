@@ -5,6 +5,7 @@ import cv2
 import numpy as np
 from fastapi import APIRouter, Depends, File, Form, HTTPException, Response, UploadFile
 
+from app import jobs
 from app.auth import require_api_key
 from app.config import Settings, get_settings
 from app.schemas import ImageDetectResult
@@ -36,6 +37,19 @@ def _parse_sizes(raw: str) -> list[tuple[int, int]] | None:
         raise HTTPException(
             status_code=422, detail="candidate_sizes must be JSON [[w,h],...]"
         ) from exc
+
+
+def _image_job_status(settings: Settings, job_id: str) -> dict:
+    job = jobs.fetch(settings, job_id)
+    if not job:
+        raise HTTPException(status_code=404, detail="job not found")
+    state, result, error = jobs.status_of(job)
+    return {
+        "job_id": job_id,
+        "status": state,
+        "result": result if state == "ready" else None,
+        "error": error,
+    }
 
 
 @router.get("/capabilities")
@@ -96,6 +110,46 @@ async def watermark_image(
     return Response(content=out, media_type="image/png", headers=headers)
 
 
+@router.post("/watermark/jobs")
+async def create_watermark_image_job(
+    file: UploadFile = File(...),
+    payload: int = Form(...),
+    engine: str = Form("qim-dct"),
+    settings: Settings = Depends(get_settings),
+) -> dict:
+    if not (1 <= payload <= MAX_PAYLOAD_ID):
+        raise HTTPException(status_code=422, detail=f"payload must be in [1,{MAX_PAYLOAD_ID}]")
+    if engine not in {"qim-dct", "trustmark"}:
+        raise HTTPException(status_code=422, detail=f"unknown engine: {engine}")
+    if engine == "trustmark":
+        from engine import image_neural
+
+        if not image_neural.is_available():
+            raise HTTPException(status_code=409, detail="trustmark is not enabled or not installed")
+
+    data = await file.read()
+    job_id = jobs.enqueue(
+        settings,
+        "worker.tasks.embed_image_task",
+        {
+            "data": data,
+            "filename": file.filename or "image",
+            "payload": payload,
+            "engine": engine,
+        },
+        timeout=1800,
+    )
+    return {"job_id": job_id, "status": "processing"}
+
+
+@router.get("/watermark/jobs/{job_id}")
+async def watermark_image_job_status(
+    job_id: str,
+    settings: Settings = Depends(get_settings),
+) -> dict:
+    return _image_job_status(settings, job_id)
+
+
 @router.post("/detect", response_model=ImageDetectResult)
 async def detect_image(
     file: UploadFile = File(...),
@@ -120,3 +174,41 @@ async def detect_image(
     except Exception as exc:
         raise HTTPException(status_code=400, detail=f"detect failed: {exc}") from exc
     return ImageDetectResult(marked=marked, payload=payload, confidence=conf, engine=engine)
+
+
+@router.post("/detect/jobs")
+async def create_detect_image_job(
+    file: UploadFile = File(...),
+    engine: str = Form("qim-dct"),
+    candidate_sizes: str = Form(""),
+    settings: Settings = Depends(get_settings),
+) -> dict:
+    if engine not in {"qim-dct", "trustmark"}:
+        raise HTTPException(status_code=422, detail=f"unknown engine: {engine}")
+    if engine == "trustmark":
+        from engine import image_neural
+
+        if not image_neural.is_available():
+            raise HTTPException(status_code=409, detail="trustmark is not enabled or not installed")
+
+    data = await file.read()
+    job_id = jobs.enqueue(
+        settings,
+        "worker.tasks.detect_image_task",
+        {
+            "data": data,
+            "filename": file.filename or "image",
+            "engine": engine,
+            "candidate_sizes": _parse_sizes(candidate_sizes),
+        },
+        timeout=1800,
+    )
+    return {"job_id": job_id, "status": "processing"}
+
+
+@router.get("/detect/jobs/{job_id}")
+async def detect_image_job_status(
+    job_id: str,
+    settings: Settings = Depends(get_settings),
+) -> dict:
+    return _image_job_status(settings, job_id)

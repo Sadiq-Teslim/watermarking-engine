@@ -1,4 +1,6 @@
 """HTTP layer tests: auth, validation, job lifecycle (Redis + SSRF mocked)."""
+import io
+
 import pytest
 
 from app import jobs, security
@@ -80,3 +82,44 @@ def test_detect_create_and_status(client, auth_headers, monkeypatch):
     body = resp2.json()
     assert body["status"] == "ready"
     assert body["result"]["payload"] == 42
+
+
+def test_image_watermark_job_returns_job(client, auth_headers, monkeypatch):
+    monkeypatch.setattr(jobs, "enqueue", lambda *a, **k: "img-1")
+    resp = client.post(
+        "/v1/image/watermark/jobs",
+        headers=auth_headers,
+        data={"payload": "42", "engine": "qim-dct"},
+        files={"file": ("image.png", io.BytesIO(b"fake-image"), "image/png")},
+    )
+    assert resp.status_code == 200
+    assert resp.json() == {"job_id": "img-1", "status": "processing"}
+
+
+def test_image_watermark_job_rejects_disabled_trustmark(client, auth_headers, monkeypatch):
+    from engine import image_neural
+
+    monkeypatch.setattr(image_neural, "is_available", lambda: False)
+    resp = client.post(
+        "/v1/image/watermark/jobs",
+        headers=auth_headers,
+        data={"payload": "42", "engine": "trustmark"},
+        files={"file": ("image.png", io.BytesIO(b"fake-image"), "image/png")},
+    )
+    assert resp.status_code == 409
+
+
+def test_image_watermark_job_status_ready(client, auth_headers, monkeypatch):
+    result = {
+        "watermarked_url": "https://cdn/marked.png",
+        "watermarked_public_id": "proofmark/marked",
+        "width": 512,
+        "height": 512,
+    }
+    monkeypatch.setattr(jobs, "fetch", lambda *a, **k: object())
+    monkeypatch.setattr(jobs, "status_of", lambda job: ("ready", result, None))
+    resp = client.get("/v1/image/watermark/jobs/img-1", headers=auth_headers)
+    assert resp.status_code == 200
+    body = resp.json()
+    assert body["status"] == "ready"
+    assert body["result"]["watermarked_url"] == "https://cdn/marked.png"
