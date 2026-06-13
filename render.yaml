@@ -8,7 +8,7 @@ services:
     dockerContext: .
     plan: standard
     healthCheckPath: /healthz
-    dockerCommand: sh -c "uvicorn app.main:app --host 0.0.0.0 --port ${PORT:-8000} --workers 2"
+    dockerCommand: sh -c "uvicorn app.main:app --host 0.0.0.0 --port ${PORT:-8000} --workers ${WEB_CONCURRENCY:-1}"
     envVars:
       - key: REDIS_URL
         fromService: { type: keyvalue, name: fpwm-redis, property: connectionString }
@@ -26,6 +26,14 @@ services:
         sync: false
       - key: CLOUDINARY_FOLDER
         value: fairplayafrica/watermarked
+      - key: WEB_CONCURRENCY
+        value: 1
+      - key: FPWM_TRUSTMARK_ENABLED
+        value: false
+      - key: FPWM_TRUSTMARK_MODEL
+        value: C
+      - key: FPWM_TRUSTMARK_MAX_SIDE
+        value: 768
 
   - type: worker
     name: fpwm-worker

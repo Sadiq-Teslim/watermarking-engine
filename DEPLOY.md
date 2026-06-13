@@ -23,7 +23,9 @@ app; FairPlay talks to it through the `fairplay` watermark provider over HTTPS.
    `FPWM_API_KEY`, `FPWM_HMAC_SECRET`, `CLOUDINARY_CLOUD_NAME`, `CLOUDINARY_API_KEY`,
    `CLOUDINARY_API_SECRET`.
 3. Redis is provisioned by the blueprint and wired via `REDIS_URL` automatically.
-4. Scale `fpwm-worker` (`numInstances`) for throughput; the `web` service stays at 1–2.
+4. Scale `fpwm-worker` (`numInstances`) for throughput; keep the `web` service at
+   `WEB_CONCURRENCY=1` when TrustMark is installed so the neural model is not duplicated
+   across multiple web processes on a CPU host.
 
 ## Option B — Any Docker host (VM / ECS / Fly)
 
@@ -71,12 +73,24 @@ ProofMark uses for Strong image protection.
    curl -H "Authorization: Bearer <FPWM_API_KEY>" \
      https://<host>/v1/image/capabilities
    ```
-   `engines.trustmark.available` must be `true`.
-3. Validate image accuracy BEFORE enabling Strong mode for users:
+   `engines.trustmark.available` remains `false` until `FPWM_TRUSTMARK_ENABLED=true`
+   is set on FPWM.
+3. Configure the CPU-safe TrustMark runtime:
+   ```
+   WEB_CONCURRENCY=1
+   FPWM_TRUSTMARK_MODEL=C
+   FPWM_TRUSTMARK_MAX_SIDE=768
+   ```
+   `FPWM_TRUSTMARK_MODEL` must stay the same for encode and detect. Increase
+   `FPWM_TRUSTMARK_MAX_SIDE` only after memory and latency are measured on the host.
+4. Validate image accuracy BEFORE enabling Strong mode for users:
    ```
    FPWM_BENCH_ENGINE=trustmark python -m bench.run_image_benchmark \
      && python -m bench.image_gates
    ```
+5. Run a live embed+detect smoke test against the deployed host. Only then set
+   `FPWM_TRUSTMARK_ENABLED=true` and redeploy/restart FPWM. ProofMark's Strong mode
+   reads `/v1/image/capabilities`, so it stays disabled until this flag is on.
 
 ## Enabling the full neural tier (audio + VideoSeal)
 

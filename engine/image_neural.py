@@ -7,6 +7,7 @@ imports are deferred.
 NOTE: validate TrustMark's encode/decode signatures against the installed version at deploy.
 """
 import io
+import os
 
 from engine.constants import MAX_PAYLOAD_ID
 
@@ -14,6 +15,8 @@ _model = None
 
 
 def is_available() -> bool:
+    if os.environ.get("FPWM_TRUSTMARK_ENABLED", "").lower() not in {"1", "true", "yes", "on"}:
+        return False
     try:
         import trustmark  # noqa: F401
     except ImportError:
@@ -25,7 +28,8 @@ def _load():
     global _model
     if _model is None:
         from trustmark import TrustMark  # deferred heavy import
-        _model = TrustMark(verbose=False, model_type="Q")
+        model_type = os.environ.get("FPWM_TRUSTMARK_MODEL", "C").strip().upper() or "C"
+        _model = TrustMark(verbose=False, model_type=model_type)
     return _model
 
 
@@ -41,11 +45,26 @@ def _secret_to_payload(secret: str) -> int | None:
     return value if 1 <= value <= MAX_PAYLOAD_ID else None
 
 
-def embed_image(data: bytes, payload_id: int) -> bytes:
+def _max_side() -> int:
+    try:
+        return max(0, int(os.environ.get("FPWM_TRUSTMARK_MAX_SIDE", "768")))
+    except ValueError:
+        return 768
+
+
+def _bounded_rgb(data: bytes):
     from PIL import Image
 
+    img = Image.open(io.BytesIO(data)).convert("RGB")
+    max_side = _max_side()
+    if max_side and max(img.size) > max_side:
+        img.thumbnail((max_side, max_side), Image.Resampling.LANCZOS)
+    return img
+
+
+def embed_image(data: bytes, payload_id: int) -> bytes:
     tm = _load()
-    cover = Image.open(io.BytesIO(data)).convert("RGB")
+    cover = _bounded_rgb(data)
     stego = tm.encode(cover, _payload_to_secret(payload_id))
     buf = io.BytesIO()
     stego.save(buf, format="PNG")
@@ -53,10 +72,8 @@ def embed_image(data: bytes, payload_id: int) -> bytes:
 
 
 def detect_image(data: bytes) -> tuple[bool, int | None, float]:
-    from PIL import Image
-
     tm = _load()
-    img = Image.open(io.BytesIO(data)).convert("RGB")
+    img = _bounded_rgb(data)
     secret, present, _schema = tm.decode(img)
     if not present:
         return (False, None, 0.0)
