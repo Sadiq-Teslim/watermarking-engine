@@ -56,15 +56,38 @@ TEST_SOURCE_URL=https://<a-public-test-clip>.mp4 \
 ```
 Checks `/healthz`, `/readyz`, auth rejection, and a full embed→ready round trip.
 
-## Enabling the neural tier (audio + VideoSeal)
+## Enabling the image neural tier (TrustMark / ProofMark Strong mode)
 
-The neural tier is opt-in (heavy torch deps). To enable:
+The image neural tier is opt-in because it installs torch + TrustMark. This is what
+ProofMark uses for Strong image protection.
 
 1. Build the image with neural deps:
    ```
    INSTALL_NEURAL=true docker compose -f docker-compose.prod.yml up -d --build
    ```
-   (Render: add `INSTALL_NEURAL=true` as a build env var.)
+   (Render: add `INSTALL_NEURAL=true` as a build env/build arg.)
+2. Confirm the deployed engine reports TrustMark availability:
+   ```
+   curl -H "Authorization: Bearer <FPWM_API_KEY>" \
+     https://<host>/v1/image/capabilities
+   ```
+   `engines.trustmark.available` must be `true`.
+3. Validate image accuracy BEFORE enabling Strong mode for users:
+   ```
+   FPWM_BENCH_ENGINE=trustmark python -m bench.run_image_benchmark \
+     && python -m bench.image_gates
+   ```
+
+## Enabling the full neural tier (audio + VideoSeal)
+
+The full neural tier includes the image tier plus audio/video models. It is heavier and should
+only be enabled when FairPlay video/audio neural watermarking is ready.
+
+1. Build the image with full neural deps:
+   ```
+   INSTALL_NEURAL_FULL=true docker compose -f docker-compose.prod.yml up -d --build
+   ```
+   (Render: add `INSTALL_NEURAL_FULL=true` as a build env/build arg.)
 2. Validate accuracy for each neural engine BEFORE switching production traffic:
    ```
    AUDIO_WATERMARK_ENABLED=true FPWM_BENCH_ENGINE=videoseal \
