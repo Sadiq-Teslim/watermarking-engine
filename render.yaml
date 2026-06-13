@@ -60,6 +60,12 @@ services:
         sync: false
       - key: CLOUDINARY_FOLDER
         value: fairplayafrica/watermarked
+      - key: FPWM_TRUSTMARK_ENABLED
+        value: false
+      - key: FPWM_TRUSTMARK_MODEL
+        value: C
+      - key: FPWM_TRUSTMARK_MAX_SIDE
+        value: 768
 
   - type: keyvalue
     name: fpwm-redis
