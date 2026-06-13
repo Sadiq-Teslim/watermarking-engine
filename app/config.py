@@ -28,6 +28,9 @@ class Settings(BaseSettings):
     # Neural tier
     audio_watermark_enabled: bool = False
     audio_alpha: float = 1.0
+    fpwm_trustmark_enabled: bool = False
+    fpwm_trustmark_model: str = "C"
+    fpwm_trustmark_max_side: int = 768
 
     def storage_configured(self) -> bool:
         if self.storage_backend == "cloudinary":
