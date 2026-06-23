@@ -1,12 +1,19 @@
 """ffmpeg-backed video I/O: probe, streaming frame-by-frame watermark (audio preserved),
 and frame sampling for detection. Operates directly on http(s) URLs or local paths."""
 import json
+import os
+import shlex
 import subprocess
 import tempfile
 from collections.abc import Iterator
 from dataclasses import dataclass
 
 import numpy as np
+
+
+def _bin(name: str) -> list[str]:
+    configured = os.getenv(f"{name.upper()}_BIN")
+    return shlex.split(configured) if configured else [name]
 
 
 @dataclass
@@ -24,7 +31,7 @@ def _run(cmd: list[str], timeout: int) -> subprocess.CompletedProcess:
 
 def probe(src: str, timeout: int = 60) -> VideoInfo:
     cmd = [
-        "ffprobe", "-v", "error", "-print_format", "json",
+        *_bin("ffprobe"), "-v", "error", "-print_format", "json",
         "-show_streams", "-show_format", src,
     ]
     result = _run(cmd, timeout)
@@ -68,13 +75,13 @@ def watermark_video(
     enc_err = tempfile.TemporaryFile()
 
     dec = subprocess.Popen(
-        ["ffmpeg", "-v", "error", "-i", src,
+        [*_bin("ffmpeg"), "-v", "error", "-i", src,
          "-f", "rawvideo", "-pix_fmt", "bgr24", "-vsync", "0", "pipe:1"],
         stdout=subprocess.PIPE, stderr=dec_err,
     )
 
     enc_cmd = [
-        "ffmpeg", "-v", "error", "-y",
+        *_bin("ffmpeg"), "-v", "error", "-y",
         "-f", "rawvideo", "-pix_fmt", "bgr24", "-s", f"{w}x{h}",
         "-framerate", f"{info.fps}", "-i", "pipe:0",
         "-i", src,
@@ -130,7 +137,7 @@ def extract_audio_wav(src: str, out_wav: str, sample_rate: int = 16000, timeout:
     if not probe(src).has_audio:
         return False
     result = _run(
-        ["ffmpeg", "-v", "error", "-y", "-i", src,
+        [*_bin("ffmpeg"), "-v", "error", "-y", "-i", src,
          "-vn", "-ac", "1", "-ar", str(sample_rate), "-f", "wav", out_wav],
         timeout,
     )
@@ -142,7 +149,7 @@ def extract_audio_wav(src: str, out_wav: str, sample_rate: int = 16000, timeout:
 def replace_audio(video_in: str, wav_in: str, out_path: str, timeout: int = 1800) -> None:
     """Mux `wav_in` as the audio track of `video_in` (video copied, audio re-encoded AAC)."""
     result = _run(
-        ["ffmpeg", "-v", "error", "-y", "-i", video_in, "-i", wav_in,
+        [*_bin("ffmpeg"), "-v", "error", "-y", "-i", video_in, "-i", wav_in,
          "-map", "0:v:0", "-map", "1:a:0", "-c:v", "copy", "-c:a", "aac",
          "-shortest", out_path],
         timeout,
@@ -160,7 +167,7 @@ def iter_frames(
     w, h = info.width, info.height
     frame_size = w * h * 3
 
-    args = ["ffmpeg", "-v", "error", "-i", src]
+    args = [*_bin("ffmpeg"), "-v", "error", "-i", src]
     if sample_fps:
         args += ["-vf", f"fps={sample_fps}"]
     args += ["-f", "rawvideo", "-pix_fmt", "bgr24", "-vsync", "0", "pipe:1"]
