@@ -24,6 +24,9 @@ class Settings(BaseSettings):
     # Job guards
     max_source_bytes: int = 2_000_000_000
     max_duration_s: int = 14_400
+    fpwm_quality_metrics_enabled: bool = True
+    fpwm_video_crf: int = 18
+    fpwm_x264_preset: str = "medium"
 
     # Neural tier
     audio_watermark_enabled: bool = False

@@ -9,11 +9,11 @@ from engine.constants import AUDIO_ALPHA, AUDIO_SR, DEFAULT_Q
 from engine.video_mark import EmbedResult
 
 
-def _embed_video_only(src, out_path, payload_id, engine, secret, q, crf) -> EmbedResult:
+def _embed_video_only(src, out_path, payload_id, engine, secret, q, crf, preset) -> EmbedResult:
     if engine == "videoseal":
         from engine import neural_mark
         return neural_mark.embed_video_neural(src, out_path, payload_id, secret=secret, crf=crf)
-    return video_mark.embed_video(src, out_path, payload_id, secret=secret, q=q, crf=crf)
+    return video_mark.embed_video(src, out_path, payload_id, secret=secret, q=q, crf=crf, preset=preset)
 
 
 def _detect_video_only(src, engine, secret, q):
@@ -31,15 +31,16 @@ def embed(
     secret: bytes | None = None,
     q: float = DEFAULT_Q,
     crf: int = 18,
+    preset: str = "medium",
     audio: bool = False,
     audio_alpha: float = AUDIO_ALPHA,
 ) -> EmbedResult:
     if not audio:
-        return _embed_video_only(src, out_path, payload_id, engine, secret, q, crf)
+        return _embed_video_only(src, out_path, payload_id, engine, secret, q, crf, preset)
 
     with tempfile.TemporaryDirectory() as tmp:
         marked_video = os.path.join(tmp, "v.mp4")
-        result = _embed_video_only(src, marked_video, payload_id, engine, secret, q, crf)
+        result = _embed_video_only(src, marked_video, payload_id, engine, secret, q, crf, preset)
 
         in_wav = os.path.join(tmp, "a.wav")
         wm_wav = os.path.join(tmp, "a_wm.wav")

@@ -49,6 +49,7 @@ def embed_video(
     q: float = DEFAULT_Q,
     stride: int = DEFAULT_MARK_STRIDE,
     crf: int = 18,
+    preset: str = "medium",
 ) -> EmbedResult:
     bits = _codeword_bits(payload_id, secret)
     marked = {"n": 0}
@@ -59,7 +60,7 @@ def embed_video(
             return embed_bits_in_frame(frame, bits, q)
         return frame
 
-    total = ffmpeg_io.watermark_video(src, out_path, transform, crf=crf)
+    total = ffmpeg_io.watermark_video(src, out_path, transform, crf=crf, preset=preset)
     return EmbedResult(frames_total=total, frames_marked=marked["n"])
 
 
