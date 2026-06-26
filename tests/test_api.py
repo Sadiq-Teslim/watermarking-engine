@@ -27,6 +27,56 @@ def test_watermark_create_returns_job(client, auth_headers, monkeypatch):
     assert resp.json() == {"job_id": "job-123", "status": "processing"}
 
 
+def test_idempotency_requeues_terminal_jobs(settings, monkeypatch):
+    class FakeConnection:
+        def __init__(self):
+            self.values = {"fpwm:idem:movie:1": b"failed-job"}
+            self.deleted = []
+            self.sets = []
+
+        def get(self, key):
+            return self.values.get(key)
+
+        def delete(self, key):
+            self.deleted.append(key)
+            self.values.pop(key, None)
+
+        def set(self, key, value, ex=None):
+            self.sets.append((key, value, ex))
+            self.values[key] = value.encode()
+
+    class FailedJob:
+        def get_status(self, refresh=True):
+            return "failed"
+
+    class FreshJob:
+        id = "fresh-job"
+
+    class FakeQueue:
+        def __init__(self, name, connection):
+            self.name = name
+            self.connection = connection
+
+        def enqueue_call(self, **_kwargs):
+            return FreshJob()
+
+    connection = FakeConnection()
+    monkeypatch.setattr(jobs, "_connection", lambda _settings: connection)
+    monkeypatch.setattr(jobs.Job, "fetch", lambda *_args, **_kwargs: FailedJob())
+    monkeypatch.setattr(jobs, "Queue", FakeQueue)
+
+    job_id = jobs.enqueue(
+        settings,
+        "worker.tasks.embed_video_task",
+        {"source_url": "https://cdn/v.mp4", "payload": 1},
+        idempotency_key="movie:1",
+    )
+
+    assert job_id == "fresh-job"
+    assert connection.deleted == ["fpwm:idem:movie:1"]
+    assert connection.values["fpwm:idem:movie:1"] == b"fresh-job"
+
+
 def test_watermark_payload_exceeds_max(client, auth_headers):
     resp = client.post(
         "/v1/watermark/video",
