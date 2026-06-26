@@ -117,6 +117,10 @@ only be enabled when FairPlay video/audio neural watermarking is ready.
 ## Operate
 
 - **Health:** `/healthz` (liveness), `/readyz` (redis + ffmpeg + storage).
+- **512MB/free alpha mode:** set `FPWM_QUALITY_METRICS_ENABLED=false`,
+  `FPWM_X264_PRESET=ultrafast`, and `FPWM_VIDEO_CRF=23`. This keeps the forensic embed path
+  active but skips expensive PSNR/SSIM/VMAF analysis and uses a lighter encoder profile.
+  Re-enable metrics before production benchmarking.
 - **Scaling:** add worker instances; cap per-worker concurrency (ffmpeg is RAM-heavy — one
   job per worker process by design).
 - **Rollback:** flip `WATERMARK_PROVIDER` back to `imatag` on FairPlay; the abstraction

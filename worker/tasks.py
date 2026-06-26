@@ -9,7 +9,7 @@ import httpx
 
 from app import storage
 from app.config import get_settings
-from engine import channels, ffmpeg_io, image_codec, metrics
+from engine import channels, ffmpeg_io, image_codec
 from engine.constants import DEFAULT_Q, MAX_PAYLOAD_ID
 
 
@@ -59,18 +59,26 @@ def embed_video_task(
         out_path = os.path.join(tmp, "marked.mp4")
         embed = channels.embed(
             source_url, out_path, payload, engine=engine, secret=_secret(), q=q,
+            crf=settings.fpwm_video_crf, preset=settings.fpwm_x264_preset,
             audio=settings.audio_watermark_enabled, audio_alpha=settings.audio_alpha,
         )
-        psnr, ssim = metrics.quality_psnr_ssim(source_url, out_path)
-        vmaf = metrics.quality_vmaf(source_url, out_path)
+        metric_values = {"psnr": None, "ssim": None, "vmaf": None}
+        if settings.fpwm_quality_metrics_enabled:
+            from engine import metrics
+
+            psnr, ssim = metrics.quality_psnr_ssim(source_url, out_path)
+            vmaf = metrics.quality_vmaf(source_url, out_path)
+            metric_values = {
+                "psnr": round(psnr, 2),
+                "ssim": round(ssim, 4),
+                "vmaf": round(vmaf, 2) if vmaf is not None else None,
+            }
         watermarked_url = storage.upload_video(settings, out_path)
 
     result = {
         "watermarked_url": watermarked_url,
         "metrics": {
-            "psnr": round(psnr, 2),
-            "ssim": round(ssim, 4),
-            "vmaf": round(vmaf, 2) if vmaf is not None else None,
+            **metric_values,
             "frames_marked": embed.frames_marked,
             "frames_total": embed.frames_total,
         },
