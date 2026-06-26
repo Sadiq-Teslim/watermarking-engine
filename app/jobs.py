@@ -11,6 +11,7 @@ from app.config import Settings
 QUEUE_NAME = "fpwm"
 RESULT_TTL = 86_400      # keep results 24h
 IDEM_TTL = 86_400
+TERMINAL_REQUEUE_STATUSES = {"failed", "stopped", "canceled"}
 
 
 def _connection(settings: Settings) -> redis.Redis:
@@ -26,9 +27,18 @@ def enqueue(
 ) -> str:
     conn = _connection(settings)
     if idempotency_key:
-        existing = conn.get(f"fpwm:idem:{idempotency_key}")
+        idem_key = f"fpwm:idem:{idempotency_key}"
+        existing = conn.get(idem_key)
         if existing:
-            return existing.decode()
+            existing_job_id = existing.decode()
+            try:
+                existing_job = Job.fetch(existing_job_id, connection=conn)
+                existing_status = existing_job.get_status(refresh=True)
+                if existing_status not in TERMINAL_REQUEUE_STATUSES:
+                    return existing_job_id
+            except NoSuchJobError:
+                pass
+            conn.delete(idem_key)
 
     queue = Queue(QUEUE_NAME, connection=conn)
     job = queue.enqueue_call(
