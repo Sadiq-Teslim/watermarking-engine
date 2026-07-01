@@ -7,6 +7,7 @@ imports are deferred.
 NOTE: validate TrustMark's encode/decode signatures against the installed version at deploy.
 """
 import io
+import importlib.util
 import os
 
 from engine.constants import MAX_PAYLOAD_ID
@@ -17,11 +18,9 @@ _model = None
 def is_available() -> bool:
     if os.environ.get("FPWM_TRUSTMARK_ENABLED", "").lower() not in {"1", "true", "yes", "on"}:
         return False
-    try:
-        import trustmark  # noqa: F401
-    except ImportError:
-        return False
-    return True
+    # Checking capabilities must stay lightweight. Importing TrustMark loads the
+    # neural runtime and can exhaust the web process before a watermark job starts.
+    return importlib.util.find_spec("trustmark") is not None
 
 
 def _load():
