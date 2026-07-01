@@ -25,7 +25,7 @@ def test_trustmark_available_when_package_and_env_enabled(monkeypatch):
     from engine import image_neural
 
     monkeypatch.setenv("FPWM_TRUSTMARK_ENABLED", "true")
-    monkeypatch.setitem(sys.modules, "trustmark", types.SimpleNamespace())
+    monkeypatch.setattr(image_neural.importlib.util, "find_spec", lambda _name: object())
 
     assert image_neural.is_available() is True
 
