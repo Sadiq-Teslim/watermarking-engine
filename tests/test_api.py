@@ -16,6 +16,14 @@ def test_watermark_requires_auth(client):
     assert resp.status_code == 401
 
 
+def test_image_capabilities_are_lightweight_and_authenticated(client, auth_headers):
+    assert client.get("/v1/image/capabilities").status_code == 401
+    resp = client.get("/v1/image/capabilities", headers=auth_headers)
+    assert resp.status_code == 200
+    assert resp.json()["engines"]["qim-dct"]["available"] is True
+    assert resp.json()["engines"]["trustmark"]["available"] is False
+
+
 def test_watermark_create_returns_job(client, auth_headers, monkeypatch):
     monkeypatch.setattr(jobs, "enqueue", lambda *a, **k: "job-123")
     resp = client.post(

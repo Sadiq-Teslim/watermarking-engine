@@ -1,4 +1,5 @@
 """Synchronous image watermark + detect endpoints (fast — no job queue needed)."""
+import importlib.util
 import json
 
 import cv2
@@ -53,9 +54,11 @@ def _image_job_status(settings: Settings, job_id: str) -> dict:
 
 
 @router.get("/capabilities")
-async def image_capabilities() -> dict:
-    from engine import image_neural
-
+async def image_capabilities(settings: Settings = Depends(get_settings)) -> dict:
+    trustmark_available = (
+        settings.fpwm_trustmark_enabled
+        and importlib.util.find_spec("trustmark") is not None
+    )
     return {
         "default_engine": "qim-dct",
         "engines": {
@@ -70,7 +73,7 @@ async def image_capabilities() -> dict:
                 ],
             },
             "trustmark": {
-                "available": image_neural.is_available(),
+                "available": trustmark_available,
                 "tier": "strong",
                 "survives": ["crop", "rotation", "screenshots", "unknown-resize"],
             },
